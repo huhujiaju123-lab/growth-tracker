@@ -173,3 +173,40 @@ model ChildProfile {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
+
+// ============================================
+// 6. 对话系统
+// ============================================
+
+// 对话会话
+model Conversation {
+  id          String    @id @default(cuid())
+  title       String?   // 对话标题（可自动生成）
+  summary     String?   @db.Text // 对话摘要（用于后续检索）
+  status      String    @default("active") // active / archived
+
+  messages    Message[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// 对话消息
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role           String       // user / assistant
+  content        String       @db.Text
+
+  // 记录这条回复参考了哪些数据
+  referencedEntryIds String[] // 引用的日志 ID
+
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}

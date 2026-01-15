@@ -96,7 +96,7 @@ export interface EntryWithAnalysis {
 // Agent 类型
 // ============================================
 
-export type AgentName = 'recorder' | 'expert' | 'values' | 'orchestrator'
+export type AgentName = 'recorder' | 'expert' | 'values' | 'orchestrator' | 'chat'
 
 export interface AgentConfig {
   name: AgentName

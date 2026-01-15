@@ -38,6 +38,12 @@ const DEFAULT_CONFIGS: Record<AgentName, AgentConfig> = {
     maxTokens: 500,
     temperature: 0.2,
   },
+  chat: {
+    name: 'chat',
+    model: 'gpt-4o',
+    maxTokens: 2000,
+    temperature: 0.7,
+  },
 }
 
 // OpenAI 客户端单例
