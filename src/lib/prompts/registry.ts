@@ -2,30 +2,72 @@
  * Prompt Registry - Agent Prompt 版本管理
  *
  * 支持：
+ * - 本地文件：从 /prompts/*.md 加载（开发调试优先）
  * - 热更新：运行时从数据库加载 prompt
  * - 版本管理：每个 Agent 可以有多个版本
  * - 灰度发布：enabled 标记控制启用状态
  * - 回滚：随时切换到之前的版本
+ *
+ * 加载优先级：
+ * 1. 本地文件 /prompts/{agentName}.md（开发调试用）
+ * 2. 数据库 AgentPrompt 表
+ * 3. 代码中的默认 prompt
  */
 
 import prisma from '@/lib/db'
 import type { AgentName } from '@/lib/types'
+import fs from 'fs/promises'
+import path from 'path'
 
-// 内存缓存，避免每次都查数据库
+// 内存缓存，避免每次都查数据库/文件
 const promptCache = new Map<AgentName, { prompt: string; version: string; cachedAt: number }>()
-const CACHE_TTL = 60 * 1000 // 1分钟缓存
+const CACHE_TTL = 60 * 1000 // 1分钟缓存（生产环境）
+const DEV_CACHE_TTL = 5 * 1000 // 5秒缓存（开发环境，便于调试）
+
+/**
+ * 从本地文件加载 prompt
+ */
+async function loadPromptFromFile(agentName: AgentName): Promise<string | null> {
+  try {
+    const filePath = path.join(process.cwd(), 'prompts', `${agentName}.md`)
+    const content = await fs.readFile(filePath, 'utf-8')
+    return content
+  } catch {
+    // 文件不存在，返回 null
+    return null
+  }
+}
 
 /**
  * 获取指定 Agent 当前启用的 prompt
+ *
+ * 加载优先级：
+ * 1. 本地文件 /prompts/{agentName}.md
+ * 2. 数据库 AgentPrompt 表
+ * 3. 代码中的默认 prompt
  */
 export async function getAgentPrompt(agentName: AgentName): Promise<{ prompt: string; version: string }> {
+  const isDev = process.env.NODE_ENV === 'development'
+  const cacheTTL = isDev ? DEV_CACHE_TTL : CACHE_TTL
+
   // 检查缓存
   const cached = promptCache.get(agentName)
-  if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
+  if (cached && Date.now() - cached.cachedAt < cacheTTL) {
     return { prompt: cached.prompt, version: cached.version }
   }
 
-  // 从数据库加载
+  // 1. 尝试从本地文件加载（开发调试用）
+  const filePrompt = await loadPromptFromFile(agentName)
+  if (filePrompt) {
+    promptCache.set(agentName, {
+      prompt: filePrompt,
+      version: 'local-file',
+      cachedAt: Date.now(),
+    })
+    return { prompt: filePrompt, version: 'local-file' }
+  }
+
+  // 2. 从数据库加载
   const record = await prisma.agentPrompt.findFirst({
     where: {
       agentName,
@@ -36,20 +78,19 @@ export async function getAgentPrompt(agentName: AgentName): Promise<{ prompt: st
     },
   })
 
-  if (!record) {
-    // 如果数据库没有，使用默认 prompt
-    const defaultPrompt = getDefaultPrompt(agentName)
-    return { prompt: defaultPrompt, version: 'default' }
+  if (record) {
+    // 更新缓存
+    promptCache.set(agentName, {
+      prompt: record.systemPrompt,
+      version: record.version,
+      cachedAt: Date.now(),
+    })
+    return { prompt: record.systemPrompt, version: record.version }
   }
 
-  // 更新缓存
-  promptCache.set(agentName, {
-    prompt: record.systemPrompt,
-    version: record.version,
-    cachedAt: Date.now(),
-  })
-
-  return { prompt: record.systemPrompt, version: record.version }
+  // 3. 使用默认 prompt
+  const defaultPrompt = getDefaultPrompt(agentName)
+  return { prompt: defaultPrompt, version: 'default' }
 }
 
 /**
@@ -145,6 +186,7 @@ function getDefaultPrompt(agentName: AgentName): string {
     values: VALUES_DEFAULT_PROMPT,
     orchestrator: ORCHESTRATOR_DEFAULT_PROMPT,
     chat: CHAT_DEFAULT_PROMPT,
+    mentor: MENTOR_DEFAULT_PROMPT,
   }
   return defaults[agentName]
 }
@@ -310,10 +352,36 @@ const CHAT_DEFAULT_PROMPT = `你是一位综合性的育儿顾问，同时具备
 - 避免二手鸡汤和跟风结论
 - 允许"不确定"，诚实说明局限`
 
+const MENTOR_DEFAULT_PROMPT = `你是一位育儿问题追踪导师 (Mentor Agent)。
+
+你的任务是帮助家长管理「育儿问题清单」，长期追踪问题的思考和实践进展。
+
+## 核心原则
+
+1. 不强加价值观，不替用户做决定
+2. 有些问题需要时间，不催促用户「解决」
+3. 帮助用户保持在育儿的主航线上
+
+## 三个阶段
+
+- 🔴 观察期：刚识别出问题，还在收集信息
+- 🟡 实验期：有了想法，正在尝试验证
+- 🟢 内化期：形成了稳定的应对方式
+
+## 输出格式 (JSON)
+
+根据任务类型输出：
+- 日志分析：识别新问题、关联已有问题
+- 阶段评估：判断问题是否应该流转阶段
+- 结论建议：基于观察和讨论，建议当前结论
+
+请直接输出 JSON，不要添加其他内容。`
+
 export {
   RECORDER_DEFAULT_PROMPT,
   EXPERT_DEFAULT_PROMPT,
   VALUES_DEFAULT_PROMPT,
   ORCHESTRATOR_DEFAULT_PROMPT,
   CHAT_DEFAULT_PROMPT,
+  MENTOR_DEFAULT_PROMPT,
 }

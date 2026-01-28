@@ -96,7 +96,7 @@ export interface EntryWithAnalysis {
 // Agent 类型
 // ============================================
 
-export type AgentName = 'recorder' | 'expert' | 'values' | 'orchestrator' | 'chat'
+export type AgentName = 'recorder' | 'expert' | 'values' | 'orchestrator' | 'chat' | 'mentor'
 
 export interface AgentConfig {
   name: AgentName
@@ -117,4 +117,41 @@ export interface RetrievalContext {
     description: string
     conditions: string | null
   }>
+}
+
+// ============================================
+// 育儿问题追踪
+// ============================================
+
+export type QuestionStage = 'observing' | 'experimenting' | 'internalized'
+
+export interface QuestionObservation {
+  id: string
+  questionId: string
+  content: string
+  source: 'entry' | 'manual'
+  entryId: string | null
+  createdAt: Date
+}
+
+export interface QuestionDiscussion {
+  id: string
+  questionId: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: Date
+}
+
+export interface ParentingQuestion {
+  id: string
+  question: string
+  stage: QuestionStage
+  currentConclusion: string | null
+  conclusionSource: 'ai' | 'user' | 'ai_modified' | null
+  displayOrder: number
+  relatedEntryIds: string[]
+  createdAt: Date
+  updatedAt: Date
+  observations?: QuestionObservation[]
+  discussions?: QuestionDiscussion[]
 }

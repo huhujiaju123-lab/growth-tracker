@@ -210,3 +210,62 @@ model Message {
 
   @@index([conversationId])
 }
+
+// ============================================
+// 7. 育儿问题追踪系统
+// ============================================
+
+// 育儿问题
+model ParentingQuestion {
+  id                String   @id @default(cuid())
+
+  question          String   @db.Text // 问题描述
+  stage             String   @default("observing") // observing | experimenting | internalized
+  currentConclusion String?  @db.Text // 当前结论
+  conclusionSource  String?  // ai | user | ai_modified
+
+  displayOrder      Int      @default(0) // 显示顺序（支持拖动排序）
+
+  relatedEntryIds   String[] // 关联的日志ID
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // 关联
+  observations      QuestionObservation[]
+  discussions       QuestionDiscussion[]
+
+  @@index([stage])
+  @@index([displayOrder])
+}
+
+// 问题观察记录
+model QuestionObservation {
+  id          String   @id @default(cuid())
+  questionId  String
+  question    ParentingQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  content     String   @db.Text // 观察内容
+  source      String   // entry | manual (来自日志自动关联 或 手动添加)
+  entryId     String?  // 关联的日志ID（如有）
+
+  createdAt   DateTime @default(now())
+
+  @@index([questionId])
+  @@index([createdAt])
+}
+
+// 问题讨论记录
+model QuestionDiscussion {
+  id          String   @id @default(cuid())
+  questionId  String
+  question    ParentingQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  role        String   // user | assistant
+  content     String   @db.Text
+
+  createdAt   DateTime @default(now())
+
+  @@index([questionId])
+  @@index([createdAt])
+}

@@ -13,10 +13,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body className="min-h-screen bg-stone-50">
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          {children}
-        </div>
+      <body className="h-screen overflow-hidden bg-gray-100">
+        {children}
       </body>
     </html>
   )

@@ -44,6 +44,12 @@ const DEFAULT_CONFIGS: Record<AgentName, AgentConfig> = {
     maxTokens: 2000,
     temperature: 0.7,
   },
+  mentor: {
+    name: 'mentor',
+    model: 'gpt-4o',
+    maxTokens: 2000,
+    temperature: 0.5,
+  },
 }
 
 // OpenAI 客户端单例

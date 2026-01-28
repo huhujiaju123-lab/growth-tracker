@@ -43,6 +43,7 @@
 | enabled | true/false（支持回滚） |
 | releaseNotes | 版本更新说明 |
 
+
 **运行时策略**:
 - Orchestrator 每次调用 Agent 时，根据 agentName 拉取当前启用版本
 - 支持灰度发布：对部分日志使用新版本，观察效果再全量
@@ -226,3 +227,4 @@ status: active / deprecated
 2. **留存率**: 30 天留存 ≥ 50%
 3. **满意度**: AI 分析有用评分 ≥ 4/5
 4. **数据完整性**: 0 数据丢失事件
+ 
