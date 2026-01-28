@@ -269,3 +269,64 @@ model QuestionDiscussion {
   @@index([questionId])
   @@index([createdAt])
 }
+
+// ============================================
+// 8. 递归上下文系统
+// ============================================
+
+// 每日沉淀 - 递归积累的核心
+model DailyDigest {
+  id              String   @id @default(cuid())
+  date            DateTime @unique @db.Date // 日期，每天一条
+
+  // AI 生成，用户可编辑的内容
+  // 每个数组项: {id, content, source: "ai"|"user", deleted: boolean}
+  recordSummary     Json     @default("[]") // 记录摘要
+  aiAnalysis        Json     @default("[]") // AI 分析要点
+  discussionPoints  Json     @default("[]") // 讨论要点
+  conclusions       Json     @default("[]") // 今日结论
+
+  // 开放问题（待后续跟进）
+  openQuestions     Json     @default("[]") // [{id, content, resolved: boolean}]
+
+  // 关联
+  entryIds          String[] // 关联的日志 ID
+  relatedDigestIds  String[] // 关联的历史沉淀 ID
+  learningIds       String[] // 产生的认知 ID
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([date])
+}
+
+// 认知库 - 长期积累的认知
+model Learning {
+  id            String   @id @default(cuid())
+
+  topic         String   // 主题标签（如：睡眠、情绪、饮食）
+  insight       String   @db.Text // 认知内容
+
+  // 状态管理
+  status        String   @default("hypothesis")
+                // hypothesis(假设中) | validated(已验证) | invalidated(已否定)
+  confidence    Float    @default(0.5) // 0-1 信心度
+
+  // 证据链
+  // [{id, date, type: "observation"|"experiment"|"discussion", content, entryId?, digestId?}]
+  evidence      Json     @default("[]")
+
+  // 否定原因（当 status = invalidated 时）
+  invalidReason String?  @db.Text
+
+  // 来源追踪
+  source        String   @default("ai") // ai | user
+  sourceDigestId String? // 首次产生这个认知的 DailyDigest
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([topic])
+  @@index([confidence])
+}

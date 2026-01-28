@@ -6,9 +6,16 @@ import { ProblemList } from '@/components/problem/ProblemList'
 import { ProblemDetailView } from '@/components/problem/ProblemDetailView'
 import { JournalPanel } from '@/components/journal/JournalPanel'
 import { ExpertPanel } from '@/components/expert/ExpertPanel'
-import type { EntryWithAnalysis, ParentingQuestion } from '@/lib/types'
+import { DailyDigestCard } from '@/components/digest'
+import { LearningPanel } from '@/components/learning'
+import type { EntryWithAnalysis, ParentingQuestion, DailyDigest, Learning, LearningStatus } from '@/lib/types'
+
+type ViewMode = 'journal' | 'digest'
 
 export default function Home() {
+  // 视图模式
+  const [viewMode, setViewMode] = useState<ViewMode>('journal')
+
   // 问题清单
   const [questions, setQuestions] = useState<ParentingQuestion[]>([])
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
@@ -19,6 +26,14 @@ export default function Home() {
 
   // 对话
   const [conversationId, setConversationId] = useState<string | null>(null)
+
+  // 每日沉淀
+  const [digests, setDigests] = useState<DailyDigest[]>([])
+  const [loadingDigests, setLoadingDigests] = useState(false)
+
+  // 认知库
+  const [learnings, setLearnings] = useState<Learning[]>([])
+  const [loadingLearnings, setLoadingLearnings] = useState(false)
 
   // 新问题弹窗
   const [showNewQuestion, setShowNewQuestion] = useState(false)
@@ -32,6 +47,8 @@ export default function Home() {
   useEffect(() => {
     loadEntries()
     loadQuestions()
+    loadDigests()
+    loadLearnings()
   }, [])
 
   const loadEntries = async () => {
@@ -58,6 +75,114 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to load questions:', error)
+    }
+  }
+
+  const loadDigests = async () => {
+    try {
+      setLoadingDigests(true)
+      const res = await fetch('/api/digest?limit=30')
+      const data = await res.json()
+      setDigests(data)
+    } catch (error) {
+      console.error('Failed to load digests:', error)
+    } finally {
+      setLoadingDigests(false)
+    }
+  }
+
+  const loadLearnings = async () => {
+    try {
+      setLoadingLearnings(true)
+      const res = await fetch('/api/learning')
+      const data = await res.json()
+      setLearnings(data)
+    } catch (error) {
+      console.error('Failed to load learnings:', error)
+    } finally {
+      setLoadingLearnings(false)
+    }
+  }
+
+  // 每日沉淀 CRUD
+  const handleUpdateDigest = async (digest: DailyDigest) => {
+    try {
+      const dateStr = new Date(digest.date).toISOString().split('T')[0]
+      await fetch(`/api/digest/${dateStr}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(digest)
+      })
+      setDigests(prev => prev.map(d => d.id === digest.id ? digest : d))
+    } catch (error) {
+      console.error('Failed to update digest:', error)
+    }
+  }
+
+  const handleDeleteDigest = async (id: string, date: Date) => {
+    try {
+      const dateStr = new Date(date).toISOString().split('T')[0]
+      await fetch(`/api/digest/${dateStr}`, { method: 'DELETE' })
+      setDigests(prev => prev.filter(d => d.id !== id))
+    } catch (error) {
+      console.error('Failed to delete digest:', error)
+    }
+  }
+
+  // 认知库 CRUD
+  const handleUpdateLearning = async (id: string, learning: Learning) => {
+    try {
+      await fetch(`/api/learning/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(learning)
+      })
+      setLearnings(prev => prev.map(l => l.id === id ? learning : l))
+    } catch (error) {
+      console.error('Failed to update learning:', error)
+    }
+  }
+
+  const handleDeleteLearning = async (id: string) => {
+    try {
+      await fetch(`/api/learning/${id}`, { method: 'DELETE' })
+      setLearnings(prev => prev.filter(l => l.id !== id))
+    } catch (error) {
+      console.error('Failed to delete learning:', error)
+    }
+  }
+
+  const handleLearningStatusChange = async (id: string, status: LearningStatus, invalidReason?: string) => {
+    try {
+      const action = status === 'validated' ? 'upgrade'
+                   : status === 'invalidated' ? 'invalidate'
+                   : status === 'hypothesis' ? 'restore' : null
+
+      await fetch(`/api/learning/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, invalidReason })
+      })
+
+      setLearnings(prev => prev.map(l =>
+        l.id === id ? { ...l, status, invalidReason: invalidReason || null } : l
+      ))
+    } catch (error) {
+      console.error('Failed to change learning status:', error)
+    }
+  }
+
+  const handleCreateLearning = async (topic: string, insight: string) => {
+    try {
+      const res = await fetch('/api/learning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, insight, source: 'user' })
+      })
+      const newLearning = await res.json()
+      setLearnings(prev => [newLearning, ...prev])
+    } catch (error) {
+      console.error('Failed to create learning:', error)
     }
   }
 
@@ -157,36 +282,120 @@ export default function Home() {
       </div>
 
       {/* 底部：主内容区 (约 80%) */}
-      <div className="flex-1 flex overflow-hidden">
-        {selectedQuestion ? (
-          // 问题详情视图
-          <ProblemDetailView
-            question={selectedQuestion}
-            onUpdate={handleQuestionUpdate}
-          />
-        ) : (
-          // 默认视图：日志 + 专家讨论
-          <>
-            {/* 左侧：日志记录 */}
-            <div className="w-[320px] border-r border-gray-200">
-              <JournalPanel
-                entries={entries}
-                onEntryCreated={handleEntryCreated}
-                onEntryOptimistic={handleEntryOptimistic}
-                onEntryConfirmed={handleEntryConfirmed}
-                onEntryFailed={handleEntryFailed}
-              />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* 视图切换标签 */}
+        {!selectedQuestion && (
+          <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4">
+            <div className="flex gap-4">
+              <button
+                onClick={() => setViewMode('journal')}
+                className={`py-3 px-1 border-b-2 text-sm font-medium transition-colors ${
+                  viewMode === 'journal'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                📝 日志模式
+              </button>
+              <button
+                onClick={() => setViewMode('digest')}
+                className={`py-3 px-1 border-b-2 text-sm font-medium transition-colors ${
+                  viewMode === 'digest'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                🔄 沉淀模式
+              </button>
             </div>
-
-            {/* 右侧：专家讨论 */}
-            <div className="flex-1">
-              <ExpertPanel
-                conversationId={conversationId}
-                onConversationCreated={setConversationId}
-              />
-            </div>
-          </>
+          </div>
         )}
+
+        <div className="flex-1 flex overflow-hidden">
+          {selectedQuestion ? (
+            // 问题详情视图
+            <ProblemDetailView
+              question={selectedQuestion}
+              onUpdate={handleQuestionUpdate}
+            />
+          ) : viewMode === 'journal' ? (
+            // 日志模式：日志 + 专家讨论
+            <>
+              {/* 左侧：日志记录 */}
+              <div className="w-[320px] border-r border-gray-200">
+                <JournalPanel
+                  entries={entries}
+                  onEntryCreated={handleEntryCreated}
+                  onEntryOptimistic={handleEntryOptimistic}
+                  onEntryConfirmed={handleEntryConfirmed}
+                  onEntryFailed={handleEntryFailed}
+                />
+              </div>
+
+              {/* 右侧：专家讨论 */}
+              <div className="flex-1">
+                <ExpertPanel
+                  conversationId={conversationId}
+                  onConversationCreated={setConversationId}
+                />
+              </div>
+            </>
+          ) : (
+            // 沉淀模式：每日沉淀 + 认知库
+            <>
+              {/* 左侧：每日沉淀列表 */}
+              <div className="w-[400px] border-r border-gray-200 bg-white overflow-y-auto">
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold">每日沉淀</h2>
+                    <span className="text-sm text-gray-500">{digests.length} 条</span>
+                  </div>
+
+                  {loadingDigests ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    </div>
+                  ) : digests.length === 0 ? (
+                    <div className="text-center text-gray-400 py-8">
+                      <p>还没有沉淀记录</p>
+                      <p className="text-sm mt-1">日志记录后会自动生成</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {digests.map(digest => (
+                        <DailyDigestCard
+                          key={digest.id}
+                          digest={digest}
+                          onUpdate={handleUpdateDigest}
+                          onDelete={() => handleDeleteDigest(digest.id, digest.date)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 右侧：认知库 */}
+              <div className="flex-1 bg-gray-50 overflow-hidden">
+                <div className="h-full p-4">
+                  {loadingLearnings ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    </div>
+                  ) : (
+                    <LearningPanel
+                      learnings={learnings}
+                      onUpdate={handleUpdateLearning}
+                      onDelete={handleDeleteLearning}
+                      onStatusChange={handleLearningStatusChange}
+                      onCreate={handleCreateLearning}
+                    />
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* 新问题弹窗 */}

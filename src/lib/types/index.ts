@@ -155,3 +155,107 @@ export interface ParentingQuestion {
   observations?: QuestionObservation[]
   discussions?: QuestionDiscussion[]
 }
+
+// ============================================
+// 递归上下文系统
+// ============================================
+
+// 可编辑项（用于 DailyDigest 的各个字段）
+export interface EditableItem {
+  id: string
+  content: string
+  source: 'ai' | 'user'
+  deleted: boolean
+}
+
+// 开放问题项
+export interface OpenQuestion {
+  id: string
+  content: string
+  resolved: boolean
+}
+
+// 每日沉淀
+export interface DailyDigest {
+  id: string
+  date: Date
+  recordSummary: EditableItem[]
+  aiAnalysis: EditableItem[]
+  discussionPoints: EditableItem[]
+  conclusions: EditableItem[]
+  openQuestions: OpenQuestion[]
+  entryIds: string[]
+  relatedDigestIds: string[]
+  learningIds: string[]
+  createdAt: Date
+  updatedAt: Date
+}
+
+// 认知状态
+export type LearningStatus = 'hypothesis' | 'validated' | 'invalidated'
+
+// 证据项
+export interface EvidenceItem {
+  id: string
+  date: string
+  type: 'observation' | 'experiment' | 'discussion'
+  content: string
+  entryId?: string
+  digestId?: string
+}
+
+// 认知
+export interface Learning {
+  id: string
+  topic: string
+  insight: string
+  status: LearningStatus
+  confidence: number
+  evidence: EvidenceItem[]
+  invalidReason: string | null
+  source: 'ai' | 'user'
+  sourceDigestId: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+// API 请求类型
+export interface CreateDailyDigestRequest {
+  date: string // ISO date string
+  recordSummary?: EditableItem[]
+  aiAnalysis?: EditableItem[]
+  discussionPoints?: EditableItem[]
+  conclusions?: EditableItem[]
+  openQuestions?: OpenQuestion[]
+  entryIds?: string[]
+}
+
+export interface UpdateDailyDigestRequest {
+  recordSummary?: EditableItem[]
+  aiAnalysis?: EditableItem[]
+  discussionPoints?: EditableItem[]
+  conclusions?: EditableItem[]
+  openQuestions?: OpenQuestion[]
+  entryIds?: string[]
+  relatedDigestIds?: string[]
+  learningIds?: string[]
+}
+
+export interface CreateLearningRequest {
+  topic: string
+  insight: string
+  status?: LearningStatus
+  confidence?: number
+  evidence?: EvidenceItem[]
+  source?: 'ai' | 'user'
+  sourceDigestId?: string
+}
+
+export interface UpdateLearningRequest {
+  topic?: string
+  insight?: string
+  status?: LearningStatus
+  confidence?: number
+  evidence?: EvidenceItem[]
+  invalidReason?: string
+}
